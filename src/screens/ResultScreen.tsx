@@ -11,9 +11,11 @@ import {
   Linking,
 } from "react-native";
 
-const ResultScreen = () => {
+const ResultScreen = ({ route }: { route: any }) => {
   const mainImage = require("../../assets/img4.png"); // Your main image path
-
+  const { base64Data } = route.params;
+  const base64ImageSource = `data:image/png;base64,${base64Data.result_image}`;
+  const mainImageSource = { uri: base64ImageSource };
   const data = [
     {
       id: "1",
@@ -86,7 +88,7 @@ const ResultScreen = () => {
   return (
     <View style={styles.container}>
       {/* Display the main image */}
-      <Image source={mainImage} style={styles.mainImage} />
+      <Image source={mainImageSource} style={styles.mainImage} />
 
       {/* Display the horizontal list of small images */}
       <FlatList

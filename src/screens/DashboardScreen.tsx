@@ -4,6 +4,9 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
 import * as MediaLibrary from "expo-media-library";
 import { Camera, CameraType } from "expo-camera";
+import * as FileSystem from "expo-file-system";
+import LoadProgress from "../components/LoadProgress";
+import { Asset } from "expo-asset";
 
 const DashboardScreen = ({ navigation }: { navigation: any }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -13,6 +16,7 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
   const [flash, setFlash] = useState(Camera.Constants.FlashMode.off);
   const [isStudyPressed, setIsStudyPressed] = useState(true);
   const [isCaptureDisabled, setIsCaptureDisabled] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(false);
 
   const cameraRef = useRef(null);
 
@@ -72,12 +76,75 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
         const data = await (cameraRef.current as Camera).takePictureAsync(
           options
         );
+        console.log("Picture taken successfully");
+
+        // Convert base64 of the current image to standard base64
+        const currentImagePath = currentImagePaths[currentImageIndex];
+        const asset = Asset.fromModule(currentImagePath);
+        await asset.downloadAsync();
+
+        const localUri: any = asset.localUri;
+        const base64Data = await FileSystem.readAsStringAsync(localUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        // console.log("Base64 Data is ", base64Data);
+
+        //     const currentImageBase64 = await FileSystem.readAsStringAsync(
+        //       currentImagePath.toString(),
+        //       {
+        //         encoding: FileSystem.EncodingType.Base64,
+        //       }
+        //     );
+        // console.log("Current Image Base64:", currentImageBase64);
+
+        const takenImageBase64 = data.base64;
+        // console.log("Taken Image Base64:", takenImageBase64);
+
+        // Prepare the request payload
+        const payload = {
+          origin_img_base64: takenImageBase64,
+          style_img_base64: base64Data,
+        };
+        setLoadProgress(true);
+        // Make a POST request to your Flask API
+        const response = await fetch("http://192.168.1.5:5000/image", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        // console.log("Response from Flask API:", response);
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log("Result from Flask API:", "successfull");
+          setLoadProgress(false);
+          setCameraOpen(false);
+
+          navigation.navigate("Result", { base64Data: result.result_data });
+        } else {
+          setLoadProgress(false);
+
+          setCameraOpen(false);
+
+          console.error(
+            "Error sending images to Flask API:",
+            response.statusText
+          );
+        }
+      } catch (error: any) {
+        setLoadProgress(false);
+
         setCameraOpen(false);
-        console.log("msg - done");
-        navigation.navigate("Result");
-      } catch (error) {
+
         console.error("Error taking picture:", error);
       } finally {
+        setLoadProgress(false);
+
+        setCameraOpen(false);
+
         setIsCaptureDisabled(false); // Enable the button after execution
       }
     }
@@ -92,97 +159,100 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
     setCurrentImageIndex(0);
     setIsStudyPressed(false);
   };
-
-  return (
-    <View style={styles.container}>
-      {/* Phase 1: Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Welcome To Beauty MakeUp Style</Text>
-      </View>
-      <View style={styles.optionsContainer}>
-        <TouchableOpacity
-          onPress={handleStudy}
-          style={[
-            styles.optionButton,
-            {
-              backgroundColor: isStudyPressed ? "green" : "#434343",
-              flex: 1,
-            },
-          ]}
-        >
-          <Text style={styles.optionButtonText}>Study</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={handlePlay}
-          style={[
-            styles.optionButton,
-            {
-              backgroundColor: isStudyPressed ? "#434343" : "green",
-              flex: 1,
-            },
-          ]}
-        >
-          <Text style={styles.optionButtonText}>Play</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View>
-        <Image
-          source={currentImagePaths[currentImageIndex]}
-          style={styles.image}
-        />
-
-        <View style={styles.navigationButtons}>
+  if (loadProgress) {
+    return <LoadProgress divide={1} />;
+  } else {
+    return (
+      <View style={styles.container}>
+        {/* Phase 1: Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerText}>Welcome To Beauty MakeUp Style</Text>
+        </View>
+        <View style={styles.optionsContainer}>
           <TouchableOpacity
-            onPress={handlePrevImage}
-            style={{ flex: 2, alignItems: "center" }}
+            onPress={handleStudy}
+            style={[
+              styles.optionButton,
+              {
+                backgroundColor: isStudyPressed ? "green" : "#434343",
+                flex: 1,
+              },
+            ]}
           >
-            <Icon name="arrow-left" size={30} color="black" />
+            <Text style={styles.optionButtonText}>Study</Text>
           </TouchableOpacity>
-
-          <Text style={styles.navigationText}>
-            {currentImageIndex + 1} / {currentImagePaths.length}
-          </Text>
-
           <TouchableOpacity
-            onPress={handleNextImage}
-            style={{ flex: 2, alignItems: "center" }}
+            onPress={handlePlay}
+            style={[
+              styles.optionButton,
+              {
+                backgroundColor: isStudyPressed ? "#434343" : "green",
+                flex: 1,
+              },
+            ]}
           >
-            <Icon name="arrow-right" size={30} color="black" />
+            <Text style={styles.optionButtonText}>Play</Text>
           </TouchableOpacity>
         </View>
-      </View>
-      <View>
-        {cameraOpen && (
-          <Camera
-            ref={cameraRef}
-            style={styles.camera}
-            type={type as CameraType}
-            flashMode={flash}
+
+        <View>
+          <Image
+            source={currentImagePaths[currentImageIndex]}
+            style={styles.image}
           />
-        )}
-        {!cameraOpen && (
-          <TouchableOpacity
-            onPress={cameraOpen ? handleCloseCamera : handleOpenCamera}
-            style={styles.openCameraButton}
-          >
-            <Text style={styles.openCameraButtonText}>
-              {cameraOpen ? "Close Camera" : "Open Camera"}
+
+          <View style={styles.navigationButtons}>
+            <TouchableOpacity
+              onPress={handlePrevImage}
+              style={{ flex: 2, alignItems: "center" }}
+            >
+              <Icon name="arrow-left" size={30} color="black" />
+            </TouchableOpacity>
+
+            <Text style={styles.navigationText}>
+              {currentImageIndex + 1} / {currentImagePaths.length}
             </Text>
-          </TouchableOpacity>
-        )}
-        {cameraOpen && (
-          <TouchableOpacity
-            onPress={handleTakePicture}
-            style={styles.cameraButton}
-            disabled={isCaptureDisabled}
-          >
-            <Text style={styles.cameraButtonText}>Capture && Done</Text>
-          </TouchableOpacity>
-        )}
+
+            <TouchableOpacity
+              onPress={handleNextImage}
+              style={{ flex: 2, alignItems: "center" }}
+            >
+              <Icon name="arrow-right" size={30} color="black" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View>
+          {cameraOpen && (
+            <Camera
+              ref={cameraRef}
+              style={styles.camera}
+              type={type as CameraType}
+              flashMode={flash}
+            />
+          )}
+          {!cameraOpen && (
+            <TouchableOpacity
+              onPress={cameraOpen ? handleCloseCamera : handleOpenCamera}
+              style={styles.openCameraButton}
+            >
+              <Text style={styles.openCameraButtonText}>
+                {cameraOpen ? "Close Camera" : "Open Camera"}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {cameraOpen && (
+            <TouchableOpacity
+              onPress={handleTakePicture}
+              style={styles.cameraButton}
+              disabled={isCaptureDisabled}
+            >
+              <Text style={styles.cameraButtonText}>Capture && Done</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  }
 };
 
 const styles = StyleSheet.create({
