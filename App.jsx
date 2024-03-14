@@ -17,7 +17,7 @@ import axios from "axios"; // Import Axios
 import * as NavigationBar from "expo-navigation-bar";
 import { NavigationContainer, useNavigation } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import Dashboard from "./src/screens/DashboardScreen"
+import Dashboard from "./src/screens/DashboardScreen";
 import Result from "./src/screens/ResultScreen";
 // enableScreens();
 
@@ -56,8 +56,8 @@ const App = () => {
               fontSize: 18,
             },
           }}
-        >        
-        <Stack.Screen
+        >
+          <Stack.Screen
             name="Dashboard"
             options={{
               headerShown: false,
@@ -65,7 +65,7 @@ const App = () => {
             }}
             component={Dashboard}
           />
-           <Stack.Screen
+          <Stack.Screen
             name="Result"
             options={{
               headerShown: true,
@@ -73,8 +73,6 @@ const App = () => {
             }}
             component={Result}
           />
-  
-  
         </Stack.Navigator>
       </NavigationContainer>
     </>

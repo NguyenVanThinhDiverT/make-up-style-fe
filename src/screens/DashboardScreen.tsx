@@ -4,49 +4,78 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/FontAwesome";
 import * as MediaLibrary from "expo-media-library";
 import { Camera, CameraType } from "expo-camera";
-import * as FileSystem from "expo-file-system";
 import LoadProgress from "../components/LoadProgress";
-import { Asset } from "expo-asset";
 
 const DashboardScreen = ({ navigation }: { navigation: any }) => {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0); // set và get , ES  useState constant, function
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission]: any = useState(null);
+  const [hasCameraPermission, setHasCameraPermission]: any = ({} =
+    useState(null));
   const [type, setType] = useState(Camera.Constants.Type.front);
   const [flash, setFlash] = useState(Camera.Constants.FlashMode.off);
   const [isStudyPressed, setIsStudyPressed] = useState(true);
   const [isCaptureDisabled, setIsCaptureDisabled] = useState(false);
   const [loadProgress, setLoadProgress] = useState(false);
-
   const cameraRef = useRef(null);
-
-  const studyImagePaths = [
-    require("../../assets/img1.png"),
-    require("../../assets/img2.png"),
-    require("../../assets/img3.png"),
-    require("../../assets/img4.png"),
-  ];
-
-  const playImagePaths = [
-    require("../../assets/img5.png"),
-    require("../../assets/img6.png"),
-    require("../../assets/img7.png"),
-    require("../../assets/img8.png"),
-    require("../../assets/img9.png"),
-  ];
-
-  const currentImagePaths = isStudyPressed ? studyImagePaths : playImagePaths;
+  // Cập nhật để sử dụng state
+  const [studyImagePaths, setStudyImagePaths] = useState([]);
+  const [playImagePaths, setPlayImagePaths] = useState([]);
+  // const playImagePaths = [
+  //   require("../../assets/img5.png"),
+  //   require("../../assets/img6.png"),
+  //   require("../../assets/img7.png"),
+  //   require("../../assets/img8.png"),
+  //   require("../../assets/img9.png"),
+  // ];
+  const currentImagePaths: any = isStudyPressed
+    ? studyImagePaths
+    : playImagePaths;
 
   useEffect(() => {
-    setCurrentImageIndex(0);
-    setIsStudyPressed(true);
-    setCameraOpen(false);
     (async () => {
+      try {
+        // console.log("Load function groupStyle");
+        // Sử dụng fetch thay cho axios
+        const response = await fetch("http://192.168.1.6:5000/group_style");
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        const data = await response.json(); // Phân tích cú pháp JSON từ response
+        // console.log("Next 1", data);
+
+        // Giả sử API trả về dữ liệu hợp lệ cho cả hai mảng
+        const studyData = data.result[0].data.map((item: any) => ({
+          id: item.StyleID,
+          uri: `data:image/png;base64,${item.base64}`,
+        }));
+        // console.log("Next 2");
+
+        // console.log("studyData: " + JSON.stringify(studyData));
+        const playData = data.result[1].data.map((item: any) => ({
+          id: item.StyleID,
+          uri: `data:image/png;base64,${item.base64}`,
+        }));
+        // console.log("Next 3");
+
+        setStudyImagePaths(studyData);
+        setPlayImagePaths(playData);
+        // console.log("Load image path success");
+      } catch (error: any) {
+        console.error("There was an error!", error.message);
+      }
+      setCurrentImageIndex(0);
+      setIsStudyPressed(true);
+      setCameraOpen(false);
       MediaLibrary.requestPermissionsAsync();
       const cameraStatus = await Camera.requestCameraPermissionsAsync();
       setHasCameraPermission(cameraStatus.status === "granted");
     })();
   }, []);
+
+  // useEffect(() => {
+  //   console.log("currentImagePaths: ", currentImagePaths);
+  //   console.log("uri is ", currentImagePaths[currentImageIndex]?.uri);
+  // }, [isStudyPressed]);
 
   const handleNextImage = () => {
     if (currentImageIndex < currentImagePaths.length - 1) {
@@ -76,17 +105,21 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
         const data = await (cameraRef.current as Camera).takePictureAsync(
           options
         );
-        console.log("Picture taken successfully");
+        // console.log("Picture taken successfully");
+        const startTime = performance.now(); // Bắt đầu tính thời gian
 
         // Convert base64 of the current image to standard base64
-        const currentImagePath = currentImagePaths[currentImageIndex];
-        const asset = Asset.fromModule(currentImagePath);
-        await asset.downloadAsync();
+        // const currentImagePath = currentImagePaths[currentImageIndex];
+        // const asset = Asset.fromModule(currentImagePath);
+        // await asset.downloadAsync();
 
-        const localUri: any = asset.localUri;
-        const base64Data = await FileSystem.readAsStringAsync(localUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        // const localUri: any = asset.localUri;
+        // const base64Data = await FileSystem.readAsStringAsync(localUri, {
+        //   encoding: FileSystem.EncodingType.Base64,
+        // });
+        // navigation.navigate("Result", {
+        //   base64Data: base64Data,
+        // });
         // console.log("Base64 Data is ", base64Data);
 
         //     const currentImageBase64 = await FileSystem.readAsStringAsync(
@@ -103,11 +136,12 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
         // Prepare the request payload
         const payload = {
           origin_img_base64: takenImageBase64,
-          style_img_base64: base64Data,
+          style_img_base64: currentImagePaths[currentImageIndex]?.uri,
         };
+
         setLoadProgress(true);
         // Make a POST request to your Flask API
-        const response = await fetch("http://192.168.1.5:5000/image", {
+        const response = await fetch("http://192.168.1.6:5000/image", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -116,23 +150,27 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
         });
 
         // console.log("Response from Flask API:", response);
-
+        const endTime = performance.now();
+        const elapsedTime = endTime - startTime; // Thời gian đã trôi qua từ khi bắt đầu gọi API đến khi kết thúc (milliseconds)
         if (response.ok) {
           const result = await response.json();
-          console.log("Result from Flask API:", "successfull");
+          // console.log("Result from Flask API:", result.result_data);
           setLoadProgress(false);
           setCameraOpen(false);
+          // Kết thúc tính thời gian
 
-          navigation.navigate("Result", { base64Data: result.result_data });
+          console.log("Thời gian gọi API:", elapsedTime.toFixed(2), "ms");
+          navigation.navigate("Result", {
+            base64DataOrigin: `data:image/png;base64,${result.result_data}`,
+            base64DataStyle: currentImagePaths[currentImageIndex]?.uri,
+            style_id: currentImagePaths[currentImageIndex]?.id,
+          });
         } else {
           setLoadProgress(false);
 
           setCameraOpen(false);
 
-          console.error(
-            "Error sending images to Flask API:",
-            response.statusText
-          );
+          console.error("Error sending images to Flask API:", response.status);
         }
       } catch (error: any) {
         setLoadProgress(false);
@@ -197,7 +235,7 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
 
         <View>
           <Image
-            source={currentImagePaths[currentImageIndex]}
+            source={{ uri: currentImagePaths[currentImageIndex]?.uri }}
             style={styles.image}
           />
 
@@ -254,13 +292,13 @@ const DashboardScreen = ({ navigation }: { navigation: any }) => {
     );
   }
 };
-
+// CSS : casading stylesheet
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: "relative",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 20,
   },
   header: {
     marginTop: 25,
